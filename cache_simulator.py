@@ -1,10 +1,16 @@
-
 import sys
 import math
 
-# Linha de comando simplificada:
+# Linha de comando simplificada:   
 # cache_simulator <nsets> <bsize> <assoc> <subst> <flag_saida> arquivo_de_entrada.bin
 def main():
+    global miss_comp, miss_cap, miss_conf, hit, miss # Variaveis globais para contagem de miss
+
+    miss_comp = 0
+    miss_cap = 0
+    miss_conf = 0
+    hit = 0
+    miss = 0
 
     # Possiveis erros de parametros
     if len(sys.argv) != 7:
@@ -32,13 +38,6 @@ def main():
     flag_saida = int(sys.argv[5])
     arquivo = sys.argv[6]
 
-    #print("nsets: ", nsets)
-    #print("bsize: ", bsize)
-    #print("assoc: ", assoc)
-    #print("subst: ", subst)
-    #print("flag_saida: ", flag_saida)
-    #print("arquivo: ", arquivo)
-
     # Inicializa a cache
     cache_val = [[0] * assoc for _ in range(nsets)]  # array com o bit de validade de cada bloco
     cache_tag = [[-1] * assoc for _ in range(nsets)]  # array com a tag de cada bloco
@@ -49,13 +48,39 @@ def main():
     n_bits_tag = 32 - n_bit_offset - n_bit_indice
 
 
-    le_arquivo(arquivo, print(), n_bit_offset, n_bit_indice)
-#    print("n_bit_offset: ", n_bit_offset)
-#    print("n_bit_indice: ", n_bit_indice)
-#    print("n_bits_tag: ", n_bits_tag)
+    if assoc == 1:
+        le_arquivo(arquivo, mapeamentoDir, n_bit_offset, n_bit_indice, cache_tag, cache_val, assoc, subst)
+    elif assoc == nsets:
+        le_arquivo(arquivo, totalAssoc, n_bit_offset, n_bit_indice, cache_tag, cache_val, assoc, subst)
+    else:
+        le_arquivo(arquivo, mapAssoc, n_bit_offset, n_bit_indice, cache_tag, cache_val, assoc, subst)
 
-#    pretty_print_cache(cache_val, cache_tag)
-    
+    #  Total de acessos, Taxa de hit, Taxa de miss, Taxa de miss compulsório, Taxa de miss de capacidade, Taxa de miss de conflito
+    miss = miss_comp + miss_cap + miss_conf 
+
+    total_acessos = hit + miss
+    taxa_hit = hit / total_acessos
+    taxa_miss = miss / total_acessos
+    taxa_miss_comp = miss_comp / miss
+    taxa_miss_cap = miss_cap / miss
+    taxa_miss_conf = miss_conf / miss
+
+    if flag_saida == 1:
+        print(f"{'Total acessos:':<25} {total_acessos}")
+        print(f"{'Total hits:':<25} {hit}")
+        print(f"{'Total misses:':<25} {miss}")
+        print(f"{'Total misses comp:':<25} {miss_comp}")
+        print(f"{'Total misses cap:':<25} {miss_cap}")
+        print(f"{'Total misses conf:':<25} {miss_conf}")
+        print(f"{'Taxa hit:':<25} {taxa_hit:.2%}")
+        print(f"{'Taxa miss:':<25} {taxa_miss:.2%}")
+        print(f"{'Taxa miss compulsório:':<25} {taxa_miss_comp:.2%}")
+        print(f"{'Taxa miss de capacidade:':<25} {taxa_miss_cap:.2%}")
+        print(f"{'Taxa miss de conflito:':<25} {taxa_miss_conf:.2%}")
+    elif flag_saida == 0:
+        print(f"{total_acessos} {taxa_hit:.2%} {taxa_miss_comp:.2%} {taxa_miss_cap:.2%} {taxa_miss_conf:.2%}")
+
+
 
 def pretty_print_cache(cache_val, cache_tag):
     print("Cache:")
@@ -65,11 +90,10 @@ def pretty_print_cache(cache_val, cache_tag):
             print("Bloco ", j, end=" ")
             print("Validade: ", cache_val[i][j], end=" ")
             print("Tag: ", cache_tag[i][j])
-
     return
 
-def le_arquivo(arquivo, callback, n_bits_offset, n_bits_indice):
-    print("lendo arquivo")
+def le_arquivo(arquivo, callback, n_bits_offset, n_bits_indice, cache_tag, cache_val, assoc, subst):
+    print("Lendo arquivo")
     with open(arquivo, "rb") as arquivo_de_entrada:
         while True:
             endereco = arquivo_de_entrada.read(4)
@@ -79,9 +103,31 @@ def le_arquivo(arquivo, callback, n_bits_offset, n_bits_indice):
             tag = endereco >> (n_bits_offset + n_bits_indice)  # Extrai a tag
             indice = (endereco >> n_bits_offset) & ((2**n_bits_indice) - 1)  # Extrai o indice
 
-            print(f"Endereço: {endereco}, Tag: {tag}, Índice: {indice}")
+            #print(f"Endereço: {endereco}, Tag: {tag}, Índice: {indice}")
+            callback(tag, indice, cache_tag, cache_val, assoc, subst)       # Chama a função de mapeamento
+    print("Fim do arquivo")
     return
 
+
+def mapeamentoDir(tag, indice, cache_tag, cache_val, assoc = 1, subst = None):
+    global hit, miss_conf, miss_comp
+    if cache_val[indice][0] == 0:
+        miss_comp += 1                 # Miss compulsório
+        cache_val[indice][0] = 1       # Atualiza o bit de validade
+        cache_tag[indice][0] = tag     # Atualiza a tag
+    elif cache_tag[indice][0] == tag:
+        hit += 1                       # Hit  
+    else:
+        miss_conf += 1                 # Miss de conflito 
+        cache_val[indice][0] = 1       # Atualiza o bit de validade
+        cache_tag[indice][0] = tag     # Atualiza a tag
+    return
+
+def mapAssoc(tag, indice, cache_tag, cache_val, assoc = 1, subst = None):
+    return
+
+def totalAssoc(tag, indice, cache_tag, cache_val, assoc = 1, subst = None):
+    return
 
 if __name__ == "__main__":
     main()
