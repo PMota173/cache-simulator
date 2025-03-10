@@ -42,9 +42,14 @@ def main():
     cache_val = [[0] * assoc for _ in range(nsets)]  # array com o bit de validade de cada bloco
     cache_tag = [[-1] * assoc for _ in range(nsets)]  # array com a tag de cada bloco
 
+    # Inicializa uma estrutura para obter o controle de ordem com base na política de substituição
+    if subst in ["L", "F", "l", "f"]:  # LRU ou FIFO
+        controleDeOrdem = [[] for _ in range(nsets)]  # Lista de listas / ex nsets = 4 [[], [], [], []]
+    else:  # Random
+        controleDeOrdem = None
+
     n_bit_offset = int(math.log2(bsize))    
     n_bit_indice= int(math.log2(nsets))
-
     n_bits_tag = 32 - n_bit_offset - n_bit_indice
 
     if assoc == 1:
@@ -52,11 +57,10 @@ def main():
     elif nsets == 1:
         le_arquivo(arquivo, totalAssoc, n_bit_offset, n_bit_indice, cache_tag, cache_val, assoc, subst)
     else: # Ou quando assoc > 1 and nsets > 1
-        le_arquivo(arquivo, mapAssoc, n_bit_offset, n_bit_indice, cache_tag, cache_val, assoc, subst)
+        le_arquivo(arquivo, mapAssoc, n_bit_offset, n_bit_indice, cache_tag, cache_val, assoc, subst, controleDeOrdem)
 
     #  Total de acessos, Taxa de hit, Taxa de miss, Taxa de miss compulsório, Taxa de miss de capacidade, Taxa de miss de conflito
     miss = miss_comp + miss_cap + miss_conf 
-
     total_acessos = hit + miss
     taxa_hit = hit / total_acessos
     taxa_miss = miss / total_acessos
@@ -91,7 +95,7 @@ def pretty_print_cache(cache_val, cache_tag):
             print("Tag: ", cache_tag[i][j])
     return
 
-def le_arquivo(arquivo, callback, n_bits_offset, n_bits_indice, cache_tag, cache_val, assoc, subst):
+def le_arquivo(arquivo, callback, n_bits_offset, n_bits_indice, cache_tag, cache_val, assoc, subst, controleDeOrdem=None):
     print("Lendo arquivo")
     with open(arquivo, "rb") as arquivo_de_entrada:
         while True:
@@ -103,7 +107,7 @@ def le_arquivo(arquivo, callback, n_bits_offset, n_bits_indice, cache_tag, cache
             indice = (endereco >> n_bits_offset) & ((2**n_bits_indice) - 1)  # Extrai o indice
 
             #print(f"Endereço: {endereco}, Tag: {tag}, Índice: {indice}")
-            callback(tag, indice, cache_tag, cache_val, assoc, subst)       # Chama a função de mapeamento
+            callback(tag, indice, cache_tag, cache_val, assoc, subst, controleDeOrdem)  # Chama a função de mapeamento
     print("Fim do arquivo")
     return
 
@@ -113,7 +117,7 @@ def le_arquivo(arquivo, callback, n_bits_offset, n_bits_indice, cache_tag, cache
 #para fazer a substituição retirar o elemento que está mais a esquerda(primeiro item) da lista
 #se der hit atualizar a ordem da lista
 #se der miss verificar se é miss compulsorio ou de conflito / capacidade
-def lru_cache_access(tag, indice, cache_tag, cache_val, assoc, subst):
+def lru_cache_access(tag, indice, cache_tag, cache_val, assoc, lru):
     global hit, miss_comp, miss_conf
 
     found = False
@@ -125,13 +129,13 @@ def lru_cache_access(tag, indice, cache_tag, cache_val, assoc, subst):
             if cache_tag[indice][i] == tag:  # Hit
                 hit += 1
                 # Move este bloco para o final da lista LRU
-                subst[indice].remove(i)
-                subst[indice].append(i)
+                lru.remove(i)
+                lru.append(i)
                 found = True #hit 
                 break
         else:  # Bloco inválido
             if index_invalido == -1:
-                index_invalido = i  # Armazena o primeiro índice inválido
+                index_invalido = i  # Armazena o primeiro indice invalido
 
     if found:
         return  # Função executada, sai da função
@@ -140,24 +144,23 @@ def lru_cache_access(tag, indice, cache_tag, cache_val, assoc, subst):
     if index_invalido != -1:
         cache_val[indice][index_invalido] = 1  # Define como válido
         cache_tag[indice][index_invalido] = tag  # Atualiza a tag
-        subst[indice].append(index_invalido)  # Adiciona à lista LRU
+        lru.append(index_invalido)  # Adiciona a lista LRU
         miss_comp += 1  # Miss compulsório
         return
 
     # Se todos os blocos são válidos, temos um miss de conflito ou capacidade
     miss_conf += 1  # Assume miss de conflito por padrão
-    lru_index = subst[indice][0]  # Obtém o bloco menos recentemente usado
+    lru_index = lru.pop(0)  # Remove o bloco menos recentemente usado
     cache_tag[indice][lru_index] = tag  # Substitui a tag
-    # Remove o bloco LRU da lista e adiciona o novo bloco ao final
-    subst[indice].remove(lru_index)
-    subst[indice].append(lru_index)
+    lru.append(lru_index)  # Adiciona o novo bloco ao final da lista
+
 
 #Implementação FIFO
 #ideia quando um bloco é acessado verifica se ele está na lista e se estiver n mexer na ordem
 #para fazer a substituição retirar o elemento que está mais a esquerda da lista
 #se der hit não atualiza a ordem da lista
 #se der miss verificar se é miss compulsorio ou de conflito / capacidade
-def fifo_cache_access(tag, indice, cache_tag, cache_val, assoc, subst):
+def fifo_cache_access(tag, indice, cache_tag, cache_val, assoc, fifo):
     global hit, miss_comp, miss_conf
 
     found = False
@@ -181,43 +184,42 @@ def fifo_cache_access(tag, indice, cache_tag, cache_val, assoc, subst):
     if index_invalido != -1:
         cache_val[indice][index_invalido] = 1
         cache_tag[indice][index_invalido] = tag
-        subst[indice].append(index_invalido)
+        fifo.append(index_invalido)
         miss_comp += 1
         return
 
     # Se todos os blocos são válidos, temos um miss de conflito ou capacidade
     miss_conf += 1
-    fifo_index = subst[indice].pop(0)  # Remove o primeiro bloco da fila
+    fifo_index = fifo.pop(0)  # Remove o primeiro bloco da fila
     cache_tag[indice][fifo_index] = tag
-    subst[indice].append(fifo_index)  # Adiciona o novo bloco ao final da fila
+    fifo.append(fifo_index)  # Adiciona o novo bloco ao final da fila
 
 
-
-def mapeamentoDir(tag, indice, cache_tag, cache_val, assoc = 1, subst = None):
+def mapeamentoDir(tag, indice, cache_tag, cache_val, assoc=1, subst=None, controleDeOrdem=None):
     global hit, miss_conf, miss_comp
     if cache_val[indice][0] == 0:
-        miss_comp += 1                 # Miss compulsório
-        cache_val[indice][0] = 1       # Atualiza o bit de validade
-        cache_tag[indice][0] = tag     # Atualiza a tag
+        miss_comp += 1  # Miss compulsório
+        cache_val[indice][0] = 1  # Atualiza o bit de validade
+        cache_tag[indice][0] = tag  # Atualiza a tag
     elif cache_tag[indice][0] == tag:
-        hit += 1                       # Hit  
+        hit += 1  # Hit
     else:
-        miss_conf += 1                 # Miss de conflito 
-        cache_val[indice][0] = 1       # Atualiza o bit de validade
-        cache_tag[indice][0] = tag     # Atualiza a tag
+        miss_conf += 1  # Miss de conflito
+        cache_val[indice][0] = 1  # Atualiza o bit de validade
+        cache_tag[indice][0] = tag  # Atualiza a tag
     return
 
-def mapAssoc(tag, indice, cache_tag, cache_val, assoc, subst = None):
+
+def mapAssoc(tag, indice, cache_tag, cache_val, assoc, subst, controleDeOrdem):
     if subst in ["l", "L"]:
-        print("LRU")
+        lru_cache_access(tag, indice, cache_tag, cache_val, assoc, controleDeOrdem[indice])
     elif subst in ["f", "F"]:
-        print("FIFO")
+        fifo_cache_access(tag, indice, cache_tag, cache_val, assoc, controleDeOrdem[indice])
     elif subst in ["r", "R"]:
         print("Random")
     else:
         print("Politica de substituição invalida")
 
-    return
 
 def totalAssoc(tag, indice, cache_tag, cache_val, assoc, subst = None):
     return
