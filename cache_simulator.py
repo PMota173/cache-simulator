@@ -1,5 +1,6 @@
 import sys
 import math
+import random
 
 # Linha de comando simplificada:   
 # cache_simulator <nsets> <bsize> <assoc> <subst> <flag_saida> arquivo_de_entrada.bin
@@ -54,14 +55,13 @@ def main():
 
     if assoc == 1:
         le_arquivo(arquivo, mapeamentoDir, n_bit_offset, n_bit_indice, cache_tag, cache_val, assoc, subst)
-    elif nsets == 1:
-        le_arquivo(arquivo, totalAssoc, n_bit_offset, n_bit_indice, cache_tag, cache_val, assoc, subst)
     else: # Ou quando assoc > 1 and nsets > 1
         le_arquivo(arquivo, mapAssoc, n_bit_offset, n_bit_indice, cache_tag, cache_val, assoc, subst, controleDeOrdem)
 
     #  Total de acessos, Taxa de hit, Taxa de miss, Taxa de miss compulsório, Taxa de miss de capacidade, Taxa de miss de conflito
     miss = miss_comp + miss_cap + miss_conf 
     total_acessos = hit + miss
+
     taxa_hit = hit / total_acessos
     taxa_miss = miss / total_acessos
     taxa_miss_comp = miss_comp / miss
@@ -81,7 +81,7 @@ def main():
         print(f"{'Taxa miss de capacidade:':<25} {taxa_miss_cap:.2%}")
         print(f"{'Taxa miss de conflito:':<25} {taxa_miss_conf:.2%}")
     elif flag_saida == 1:
-        print(f"{total_acessos} {taxa_hit:.2} {taxa_miss:.2} {taxa_miss_comp:.2} {taxa_miss_cap:.2} {taxa_miss_conf:.2}")
+        print(f"{total_acessos} {taxa_hit:.4f} {taxa_miss:.4f} {taxa_miss_comp:.2f} {taxa_miss_cap:.2f} {taxa_miss_conf:.2f}")
 
 
 
@@ -210,6 +210,39 @@ def fifo_cache_access(tag, indice, cache_tag, cache_val, assoc, fifo):
     cache_tag[indice][fifo_index] = tag # Substitui a tag
     fifo.append(fifo_index)  # Adiciona o novo bloco ao final da fila
 
+def random_cache_access(tag, indice, cache_tag, cache_val, assoc):
+    global hit, miss_conf, miss_comp, miss_cap
+
+    found = False
+    index_invalido = -1
+
+    # Verifica se o bloco está na cache
+    for i in range(assoc):
+        if cache_val[indice][i] == 1:  # Bloco válido
+            if cache_tag[indice][i] == tag:  # Hit
+                hit += 1
+                found = True
+                break
+        else:  # Bloco inválido
+            if index_invalido == -1:
+                index_invalido = i
+    
+    if not found:
+        if index_invalido != -1:
+            cache_val[indice][index_invalido] = 1
+            cache_tag[indice][index_invalido] = tag
+            miss_comp += 1
+            return
+        else:
+            random_index = random.randint(0, assoc - 1)
+            tag_substituido = cache_tag[indice][random_index]
+            if (tag_substituido >> (indice)) == (tag >> (indice)):
+                miss_conf += 1
+            else:
+                miss_cap += 1
+            cache_tag[indice][random_index] = tag
+            return
+
 
 def mapeamentoDir(tag, indice, cache_tag, cache_val, assoc=1, subst=None, controleDeOrdem=None):
     global hit, miss_conf, miss_comp
@@ -232,13 +265,10 @@ def mapAssoc(tag, indice, cache_tag, cache_val, assoc, subst, controleDeOrdem):
     elif subst in ["f", "F"]:
         fifo_cache_access(tag, indice, cache_tag, cache_val, assoc, controleDeOrdem[indice])
     elif subst in ["r", "R"]:
-        print("Random")
+        random_cache_access(tag, indice, cache_tag, cache_val, assoc)
     else:
         print("Politica de substituição invalida")
-
-
-def totalAssoc(tag, indice, cache_tag, cache_val, assoc, subst = None):
-    return
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
