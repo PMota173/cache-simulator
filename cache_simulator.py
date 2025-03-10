@@ -68,7 +68,7 @@ def main():
     taxa_miss_cap = miss_cap / miss
     taxa_miss_conf = miss_conf / miss
 
-    if flag_saida == 1:
+    if flag_saida == 0:
         print(f"{'Total acessos:':<25} {total_acessos}")
         print(f"{'Total hits:':<25} {hit}")
         print(f"{'Total misses:':<25} {miss}")
@@ -80,8 +80,8 @@ def main():
         print(f"{'Taxa miss compulsório:':<25} {taxa_miss_comp:.2%}")
         print(f"{'Taxa miss de capacidade:':<25} {taxa_miss_cap:.2%}")
         print(f"{'Taxa miss de conflito:':<25} {taxa_miss_conf:.2%}")
-    elif flag_saida == 0:
-        print(f"{total_acessos} {taxa_hit:.2%} {taxa_miss_comp:.2%} {taxa_miss_cap:.2%} {taxa_miss_conf:.2%}")
+    elif flag_saida == 1:
+        print(f"{total_acessos} {taxa_hit:.2} {taxa_miss:.2} {taxa_miss_comp:.2} {taxa_miss_cap:.2} {taxa_miss_conf:.2}")
 
 
 
@@ -118,7 +118,7 @@ def le_arquivo(arquivo, callback, n_bits_offset, n_bits_indice, cache_tag, cache
 #se der hit atualizar a ordem da lista
 #se der miss verificar se é miss compulsorio ou de conflito / capacidade
 def lru_cache_access(tag, indice, cache_tag, cache_val, assoc, lru):
-    global hit, miss_comp, miss_conf
+    global hit, miss_comp, miss_conf, miss_cap
 
     found = False
     index_invalido = -1 #bloco invalido não encontrado
@@ -149,8 +149,16 @@ def lru_cache_access(tag, indice, cache_tag, cache_val, assoc, lru):
         return
 
     # Se todos os blocos são válidos, temos um miss de conflito ou capacidade
-    miss_conf += 1  # Assume miss de conflito por padrão
     lru_index = lru.pop(0)  # Remove o bloco menos recentemente usado
+    tag_substituido = cache_tag[indice][lru_index]  # Tag do bloco substituído
+
+    # Verifica se o bloco substituído pertence ao mesmo conjunto
+    if (tag_substituido >> (indice)) == (tag >> (indice)):
+        miss_conf += 1  # Miss de conflito
+    else:
+        miss_cap += 1  # Miss de capacidade
+
+    # Substitui o bloco
     cache_tag[indice][lru_index] = tag  # Substitui a tag
     lru.append(lru_index)  # Adiciona o novo bloco ao final da lista
 
@@ -161,7 +169,7 @@ def lru_cache_access(tag, indice, cache_tag, cache_val, assoc, lru):
 #se der hit não atualiza a ordem da lista
 #se der miss verificar se é miss compulsorio ou de conflito / capacidade
 def fifo_cache_access(tag, indice, cache_tag, cache_val, assoc, fifo):
-    global hit, miss_comp, miss_conf
+    global hit, miss_comp, miss_conf, miss_cap
 
     found = False
     index_invalido = -1
@@ -189,9 +197,17 @@ def fifo_cache_access(tag, indice, cache_tag, cache_val, assoc, fifo):
         return
 
     # Se todos os blocos são válidos, temos um miss de conflito ou capacidade
-    miss_conf += 1
     fifo_index = fifo.pop(0)  # Remove o primeiro bloco da fila
-    cache_tag[indice][fifo_index] = tag
+    tag_substituido = cache_tag[indice][fifo_index]  # Tag do bloco substituído
+
+    # Verifica se o bloco substituído pertence ao mesmo conjunto
+    if (tag_substituido >> (indice)) == (tag >> (indice)):
+        miss_conf += 1  # Miss de conflito
+    else:
+        miss_cap += 1  # Miss de capacidade
+
+    # Substitui o bloco
+    cache_tag[indice][fifo_index] = tag # Substitui a tag
     fifo.append(fifo_index)  # Adiciona o novo bloco ao final da fila
 
 
