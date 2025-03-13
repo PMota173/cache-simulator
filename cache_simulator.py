@@ -148,16 +148,24 @@ def lru_cache_access(tag, indice, cache_tag, cache_val, assoc, lru):
         miss_comp += 1  # Miss compulsório
         return
 
+    # Verifica se TODOS os conjuntos da cache estão cheios
+    cache_cheia = True
+    for conjunto in cache_val:
+        for bloco in conjunto:
+            if bloco == 0: # Se encontrar um bloco inválido
+                cache_cheia = False
+                break
+        if not cache_cheia:
+            break
+
+    # Classifica o miss
+    if cache_cheia:
+        miss_cap += 1
+    else:
+        miss_conf += 1
+
     # Se todos os blocos são válidos, temos um miss de conflito ou capacidade
     lru_index = lru.pop(0)  # Remove o bloco menos recentemente usado
-    tag_substituido = cache_tag[indice][lru_index]  # Tag do bloco substituído
-
-    # Verifica se o bloco substituído pertence ao mesmo conjunto
-    if (tag_substituido >> (indice)) == (tag >> (indice)):
-        miss_conf += 1  # Miss de conflito
-    else:
-        miss_cap += 1  # Miss de capacidade
-
     # Substitui o bloco
     cache_tag[indice][lru_index] = tag  # Substitui a tag
     lru.append(lru_index)  # Adiciona o novo bloco ao final da lista
@@ -196,16 +204,24 @@ def fifo_cache_access(tag, indice, cache_tag, cache_val, assoc, fifo):
         miss_comp += 1
         return
 
+     # Verifica se TODOS os conjuntos da cache estão cheios
+    cache_cheia = True
+    for conjunto in cache_val:
+        for bloco in conjunto:
+            if bloco == 0: # Se encontrar um bloco inválido
+                cache_cheia = False
+                break
+        if not cache_cheia:
+            break
+
+    # Classifica o miss
+    if cache_cheia:
+        miss_cap += 1
+    else:
+        miss_conf += 1
+
     # Se todos os blocos são válidos, temos um miss de conflito ou capacidade
     fifo_index = fifo.pop(0)  # Remove o primeiro bloco da fila
-    tag_substituido = cache_tag[indice][fifo_index]  # Tag do bloco substituído
-
-    # Verifica se o bloco substituído pertence ao mesmo conjunto
-    if (tag_substituido >> (indice)) == (tag >> (indice)):
-        miss_conf += 1  # Miss de conflito
-    else:
-        miss_cap += 1  # Miss de capacidade
-
     # Substitui o bloco
     cache_tag[indice][fifo_index] = tag # Substitui a tag
     fifo.append(fifo_index)  # Adiciona o novo bloco ao final da fila
@@ -222,25 +238,38 @@ def random_cache_access(tag, indice, cache_tag, cache_val, assoc):
             if cache_tag[indice][i] == tag:  # Hit
                 hit += 1
                 found = True
-                break
+                return  # Retorna imediatamente em caso de hit
         else:  # Bloco inválido
             if index_invalido == -1:
                 index_invalido = i
-    
+
     if not found:
         if index_invalido != -1:
+            # Se há um bloco inválido, preenche-o
             cache_val[indice][index_invalido] = 1
             cache_tag[indice][index_invalido] = tag
             miss_comp += 1
             return
         else:
-            random_index = random.randint(0, assoc - 1)
-            tag_substituido = cache_tag[indice][random_index]
-            if (tag_substituido >> (indice)) == (tag >> (indice)):
-                miss_conf += 1
+            # Verifica se todos os conjuntos da cache estão cheios
+            cache_cheia = True
+            for conjunto in cache_val:
+                for bloco in conjunto:
+                    if bloco == 0:  # Se encontrar um bloco inválido
+                        cache_cheia = False
+                        break
+                if not cache_cheia:
+                    break
+
+            # Classifica o miss
+            if cache_cheia:
+                miss_cap += 1  
             else:
-                miss_cap += 1
-            cache_tag[indice][random_index] = tag
+                miss_conf += 1  
+
+            # Substituição aleatória
+            random_index = random.randint(0, assoc - 1)
+            cache_tag[indice][random_index] = tag  # Substitui a tag
             return
 
 
